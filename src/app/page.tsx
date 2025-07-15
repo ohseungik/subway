@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, RefreshCw, Train, Clock, MapPin, ArrowUp } from "lucide-react" // ArrowUp 아이콘 추가
+import { Loader2, Search, RefreshCw, Train, Clock, MapPin, ArrowUp } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -24,14 +24,13 @@ interface SubwayArrival {
 }
 
 interface ApiResponse {
-  status?: number // errorMessage 객체 없이 직접 status
-  code?: string // errorMessage 객체 없이 직접 code
-  message?: string // errorMessage 객체 없이 직접 message
+  status?: number
+  code?: string
+  message?: string
   link?: string
   developerMessage?: string
-  total?: number // 전체 데이터 수
+  total?: number
   errorMessage?: {
-    // 이전 구조를 위한 선택적 필드
     status: number
     code: string
     message: string
@@ -45,20 +44,19 @@ interface ApiResponse {
 export default function SubwayApp() {
   const [stationName, setStationName] = useState("서울")
   const [arrivalData, setArrivalData] = useState<SubwayArrival[]>([])
-  const [loading, setLoading] = useState(false) // 초기 로딩
-  const [isFetchingMore, setIsFetchingMore] = useState(false) // 무한 스크롤 로딩
+  const [loading, setLoading] = useState(false)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [filterLine, setFilterLine] = useState<string>("all")
-  const [filterDirection, setFilterDirection] = useState<string>("all") // 방향 필터 상태 추가
-  const [showScrollToTopButton, setShowScrollToTopButton] = useState(false) // 스크롤 버튼 가시성 상태
+  const [filterDirection, setFilterDirection] = useState<string>("all")
+  const [showScrollToTopButton, setShowScrollToTopButton] = useState(false)
 
-  // 무한 스크롤 관련 상태
-  const [page, setPage] = useState(0) // 현재 페이지 (0부터 시작)
-  const itemsPerPage = 20 // 한 번에 가져올 아이템 수
-  const [hasMore, setHasMore] = useState(true) // 더 로드할 데이터가 있는지
+  const [page, setPage] = useState(0)
+  const itemsPerPage = 20
+  const [hasMore, setHasMore] = useState(true)
 
-  const observerTarget = useRef<HTMLDivElement>(null) // Intersection Observer 대상
+  const observerTarget = useRef<HTMLDivElement>(null)
 
   const fetchSubwayData = useCallback(
     async (station: string, currentPage: number, isLoadMore: boolean) => {
@@ -68,19 +66,18 @@ export default function SubwayApp() {
         setIsFetchingMore(true)
       } else {
         setLoading(true)
-        setArrivalData([]) // 새로운 검색 시 데이터 초기화
-        setPage(0) // 페이지 초기화
-        setHasMore(true) // hasMore 초기화
+        setArrivalData([])
+        setPage(0)
+        setHasMore(true)
       }
       setError(null)
 
       try {
-        const beginRow = currentPage * itemsPerPage
-        const endRow = beginRow + itemsPerPage
-
         const encodedStation = encodeURIComponent(station)
-        // API URL에 beginRow와 endRow를 포함
-        const response = await fetch(`/api/subway?station=${encodedStation}&beginRow=${beginRow}&endRow=${endRow}`)
+        // currentPage와 itemsPerPage를 API 라우트로 전달
+        const response = await fetch(
+          `/api/subway?station=${encodedStation}&currentPage=${currentPage}&itemsPerPage=${itemsPerPage}`,
+        )
 
         if (!response.ok) {
           const errorText = await response.text()
@@ -90,7 +87,6 @@ export default function SubwayApp() {
 
         const data: ApiResponse = await response.json()
 
-        // API 응답 구조 변경 반영: errorMessage 객체 대신 최상위 필드 사용
         const apiStatus = data.errorMessage?.code || data.code
         const apiMessage = data.errorMessage?.message || data.message
         const apiTotal = data.errorMessage?.total || data.total
@@ -105,13 +101,13 @@ export default function SubwayApp() {
           setArrivalData((prevData) => [...prevData, ...newArrivals])
         } else {
           setArrivalData(newArrivals)
-          setFilterLine("all") // 새로운 검색 시 열차 필터 초기화
-          setFilterDirection("all") // 새로운 검색 시 방향 필터 초기화
+          setFilterLine("all")
+          setFilterDirection("all")
         }
 
-        // 더 로드할 데이터가 있는지 확인
+        // 현재까지 로드된 데이터 수와 총 데이터 수를 비교하여 hasMore 업데이트
         setHasMore(arrivalData.length + newArrivals.length < (apiTotal || 0))
-        setPage(currentPage + 1) // 다음 페이지로 업데이트
+        setPage(currentPage + 1)
         setLastUpdated(new Date())
 
         if (newArrivals.length === 0 && !isLoadMore) {
@@ -121,7 +117,7 @@ export default function SubwayApp() {
         console.error("데이터 가져오기 오류:", err)
         setError(err instanceof Error ? err.message : "오류가 발생했습니다")
         if (!isLoadMore) setArrivalData([])
-        setHasMore(false) // 오류 발생 시 더 이상 로드하지 않음
+        setHasMore(false)
       } finally {
         if (isLoadMore) {
           setIsFetchingMore(false)
@@ -130,34 +126,34 @@ export default function SubwayApp() {
         }
       }
     },
-    [arrivalData.length],
-  ) // arrivalData.length를 의존성 배열에 추가하여 hasMore 계산 시 최신 값 반영
+    [arrivalData.length, itemsPerPage], // itemsPerPage를 의존성 배열에 추가
+  )
 
   const handleSearch = () => {
-    setArrivalData([]) // 검색 시 기존 데이터 초기화
-    setPage(0) // 페이지 초기화
-    setHasMore(true) // hasMore 초기화
+    setArrivalData([])
+    setPage(0)
+    setHasMore(true)
     fetchSubwayData(stationName, 0, false)
   }
 
   const handleRefresh = () => {
-    setArrivalData([]) // 새로고침 시 기존 데이터 초기화
-    setPage(0) // 페이지 초기화
-    setHasMore(true) // hasMore 초기화
+    setArrivalData([])
+    setPage(0)
+    setHasMore(true)
     fetchSubwayData(stationName, 0, false)
   }
 
   const getLineColor = (subwayId: string) => {
     const colors: { [key: string]: string } = {
-      "1001": "bg-blue-500", // 1호선
-      "1002": "bg-green-500", // 2호선
-      "1003": "bg-orange-500", // 3호선
-      "1004": "bg-sky-500", // 4호선
-      "1005": "bg-purple-500", // 5호선
-      "1006": "bg-amber-600", // 6호선
-      "1007": "bg-lime-600", // 7호선
-      "1008": "bg-pink-500", // 8호선
-      "1009": "bg-yellow-600", // 9호선
+      "1001": "bg-blue-500",
+      "1002": "bg-green-500",
+      "1003": "bg-orange-500",
+      "1004": "bg-sky-500",
+      "1005": "bg-purple-500",
+      "1006": "bg-amber-600",
+      "1007": "bg-lime-600",
+      "1008": "bg-pink-500",
+      "1009": "bg-yellow-600",
     }
     return colors[subwayId] || "bg-gray-500"
   }
@@ -165,17 +161,17 @@ export default function SubwayApp() {
   const getStatusColor = (arvlCd: string) => {
     switch (arvlCd) {
       case "0":
-        return "text-red-600" // 진입
+        return "text-red-600"
       case "1":
-        return "text-orange-600" // 도착
+        return "text-orange-600"
       case "2":
-        return "text-blue-600" // 출발
+        return "text-blue-600"
       case "3":
-        return "text-green-600" // 전역출발
+        return "text-green-600"
       case "4":
-        return "text-purple-600" // 전역진입
+        return "text-purple-600"
       case "5":
-        return "text-gray-600" // 전역도착
+        return "text-gray-600"
       default:
         return "text-gray-600"
     }
@@ -184,8 +180,8 @@ export default function SubwayApp() {
   const formatArrivalTime = (barvlDt: string, arvlCd: string) => {
     const totalSeconds = Number.parseInt(barvlDt)
 
-    if (arvlCd === "1") return "도착" // 도착
-    if (arvlCd === "0") return "진입" // 진입
+    if (arvlCd === "1") return "도착"
+    if (arvlCd === "0") return "진입"
 
     if (totalSeconds <= 0) return "곧 도착"
 
@@ -203,7 +199,6 @@ export default function SubwayApp() {
     return result.trim() + " 후"
   }
 
-  // 필터링된 열차 목록 (trainLineNm 및 updnLine 필터 적용)
   const filteredArrivals = useMemo(() => {
     let currentData = arrivalData
 
@@ -218,21 +213,18 @@ export default function SubwayApp() {
     return currentData
   }, [arrivalData, filterLine, filterDirection])
 
-  // 필터링 옵션 (고유한 trainLineNm 목록)
   const filterLineOptions = useMemo(() => {
     const options = new Set<string>()
     arrivalData.forEach((arrival) => options.add(arrival.trainLineNm))
     return ["all", ...Array.from(options).sort()]
   }, [arrivalData])
 
-  // 방향 필터 옵션
   const filterDirectionOptions = useMemo(() => {
     const options = new Set<string>()
     arrivalData.forEach((arrival) => options.add(arrival.updnLine))
     return ["all", ...Array.from(options).sort()]
   }, [arrivalData])
 
-  // Intersection Observer 설정
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -240,7 +232,7 @@ export default function SubwayApp() {
           fetchSubwayData(stationName, page, true)
         }
       },
-      { threshold: 1.0 }, // 뷰포트에 100% 들어왔을 때
+      { threshold: 1.0 },
     )
 
     if (observerTarget.current) {
@@ -252,9 +244,8 @@ export default function SubwayApp() {
         observer.unobserve(observerTarget.current)
       }
     }
-  }, [hasMore, loading, isFetchingMore, page, stationName, fetchSubwayData, arrivalData.length]) // 의존성 배열 업데이트
+  }, [hasMore, loading, isFetchingMore, page, stationName, fetchSubwayData, arrivalData.length])
 
-  // 스크롤 이벤트 리스너 (맨 위로 버튼 가시성 제어)
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 300) {
@@ -270,16 +261,15 @@ export default function SubwayApp() {
     }
   }, [])
 
-  // 맨 위로 스크롤 함수
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: "smooth", // 부드러운 스크롤
+      behavior: "smooth",
     })
   }
 
   useEffect(() => {
-    fetchSubwayData(stationName, 0, false) // 초기 데이터 로드
+    fetchSubwayData(stationName, 0, false)
   }, [])
 
   return (

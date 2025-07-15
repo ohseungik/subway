@@ -1,44 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-export const runtime = 'edge';
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const station = searchParams.get("station")
-  const beginRow = searchParams.get("beginRow") || "0"
-  const endRow = searchParams.get("endRow") || "20" // 기본 20개
+  const currentPage = Number.parseInt(searchParams.get("currentPage") || "0") // currentPage를 직접 받음
+  const itemsPerPage = Number.parseInt(searchParams.get("itemsPerPage") || "20") // itemsPerPage를 직접 받음
 
   if (!station) {
     return NextResponse.json(
       {
-        errorMessage: {
-          status: 400,
-          code: "ERROR-001",
-          message: "역 이름이 필요합니다",
-          link: "",
-          developerMessage: "",
-          total: 0,
-        },
+        status: 400,
+        code: "ERROR-001",
+        message: "역 이름이 필요합니다",
+        link: "",
+        developerMessage: "",
+        total: 0,
         realtimeArrivalList: [],
       },
       { status: 400 },
     )
   }
 
-  // API 키가 설정되어 있는지 확인
   const SUBWAY_API_KEY = process.env.NEXT_PUBLIC_SUBWAY_API_KEY
   if (!SUBWAY_API_KEY) {
     console.error("NEXT_PUBLIC_SUBWAY_API_KEY 환경 변수가 설정되지 않았습니다.")
     return NextResponse.json(
       {
-        errorMessage: {
-          status: 500,
-          code: "API_KEY_MISSING",
-          message: "API 키가 설정되지 않았습니다. Vercel 환경 변수를 확인해주세요.",
-          link: "",
-          developerMessage: "NEXT_PUBLIC_SUBWAY_API_KEY is not set.",
-          total: 0,
-        },
+        status: 500,
+        code: "API_KEY_MISSING",
+        message: "API 키가 설정되지 않았습니다. Vercel 환경 변수를 확인해주세요.",
+        link: "",
+        developerMessage: "NEXT_PUBLIC_SUBWAY_API_KEY is not set.",
+        total: 0,
         realtimeArrivalList: [],
       },
       { status: 500 },
@@ -46,7 +39,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 서울시 지하철 실시간 도착정보 API 호출
+    // 1-based 인덱스로 계산
+    const beginRow = currentPage * itemsPerPage + 1
+    const endRow = beginRow + itemsPerPage - 1
+
     const apiUrl = `http://swopenapi.seoul.go.kr/api/subway/${SUBWAY_API_KEY}/json/realtimeStationArrival/${beginRow}/${endRow}/${encodeURIComponent(station)}`
 
     console.log("API URL:", apiUrl)
@@ -54,9 +50,8 @@ export async function GET(request: NextRequest) {
     const response = await fetch(apiUrl, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "Mozilla/5.0 (compatible; SubwayApp/1.0)", // 일부 API는 User-Agent를 요구할 수 있음
+        "User-Agent": "Mozilla/5.0 (compatible; SubwayApp/1.0)",
       },
-      // cache: 'no-store', // 실시간 데이터이므로 캐시 사용 안 함
     })
 
     console.log("Response status:", response.status)
@@ -87,19 +82,18 @@ export async function GET(request: NextRequest) {
       throw new Error("API 응답을 파싱할 수 없습니다")
     }
 
-    // 원본 데이터를 그대로 반환
-    return NextResponse.json(data)
+    const finalData = data.errorMessage ? data : { ...data, total: data.realtimeArrivalList?.length || 0 }
+
+    return NextResponse.json(finalData)
   } catch (error) {
     return NextResponse.json(
       {
-        errorMessage: {
-          status: 500,
-          code: "API_ERROR",
-          message: error instanceof Error ? error.message : "지하철 정보를 가져오는데 실패했습니다",
-          link: "",
-          developerMessage: "",
-          total: 0,
-        },
+        status: 500,
+        code: "API_ERROR",
+        message: error instanceof Error ? error.message : "지하철 정보를 가져오는데 실패했습니다",
+        link: "",
+        developerMessage: "",
+        total: 0,
         realtimeArrivalList: [],
       },
       { status: 500 },
