@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // 서울시 지하철 실시간 도착정보 API 호출
-    const apiUrl = `http://swopenapi.seoul.go.kr/api/subway/sample/json/realtimeStationArrival/0/5/${encodeURIComponent(station)}`
+    const apiUrl = `http://swopenapi.seoul.go.kr/api/subway/${process.env.NEXT_PUBLIC_SUBWAY_API_KEY}/json/realtimeStationArrival/0/20/${encodeURIComponent(station)}`
 
     const response = await fetch(apiUrl);
 
